@@ -1,4 +1,5 @@
 import random
+import json
 
 class AperiodicAssignHeights:
     @classmethod
@@ -18,57 +19,50 @@ class AperiodicAssignHeights:
         tiles = canvas_data.get("tiles", [])
         random.seed(seed)
         
-        # Assign heights (logic from your original project)
+        # 1. Assign random heights 1-5
         heights = [random.randint(1, 5) for _ in range(len(tiles))]
         
-        # Generate the HTML for the Main Canvas
-        canvas_html = self.generate_html(tiles, heights, is_panel=False)
-        
-        # Generate the HTML for the Panel
-        panel_html = self.generate_html(tiles, heights, is_panel=True)
+        # 2. Convert tiles to a JSON-safe format for JavaScript
+        # This ensures the browser doesn't see "[]" empty arrays
+        tiles_json = json.dumps(tiles)
+        heights_json = json.dumps(heights)
 
-        return ({"html": canvas_html, "panel_html": panel_html, "tiles": tiles, "heights": heights},)
+        # 3. Build the Plotly HTML Template
+        html_template = f"""
+        <html>
+        <head>
+            <meta charset="utf-8" />
+            <script src="https://cdn.plot.ly/plotly-3.4.0.min.js"></script>
+        </head>
+        <body>
+            <div id="plot" style="width:100%;height:100vh;"></div>
+            <script>
+                const tileData = {tiles_json};
+                const heightData = {heights_json};
+                
+                const traces = tileData.map((tile, i) => {{
+                    return {{
+                        x: tile.map(p => p[0]),
+                        y: tile.map(p => p[1]),
+                        fill: 'toself',
+                        type: 'scatter',
+                        mode: 'lines',
+                        fillcolor: `rgba(100, 150, ${{heightData[i] * 40}}, 0.8)`,
+                        line: {{ color: 'black', width: 1 }}
+                    }};
+                }});
 
-    def generate_html(self, tiles, heights, is_panel=False):
-        # This string mimics the logic in your original ChristianSantos2671/AperiodicTiles repo
-        title = "Aperiodic Panel" if is_panel else "Aperiodic Canvas"
-        
-        return f"""
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>{title}</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
-    <style>body {{ margin: 0; display: flex; justify-content: center; background: #222; }}</style>
-</head>
-<body>
-    <script>
-        const tiles = {tiles};
-        const heights = {heights};
+                Plotly.newPlot('plot', traces, {{
+                    showlegend: false,
+                    xaxis: {{ visible: false }},
+                    yaxis: {{ visible: false, scaleanchor: 'x' }},
+                    margin: {{ t: 0, b: 0, l: 0, r: 0 }}
+                }});
+            </script>
+        </body>
+        </html>
+        """
 
-        function setup() {{
-            createCanvas(windowWidth, windowHeight);
-            noLoop();
-        }}
+        return ({"html": html_template, "panel_html": html_template, "tiles": tiles, "heights": heights},)
 
-        function draw() {{
-            background(240);
-            stroke(0);
-            for (let i = 0; i < tiles.length; i++) {{
-                let t = tiles[i];
-                let h = heights[i];
-                fill(h * 50, 100, 200); // Color based on assigned height
-                beginShape();
-                for (let p of t) {{
-                    vertex(p[0], p[1]);
-                }}
-                endShape(CLOSE);
-            }}
-        }}
-    </script>
-</body>
-</html>
-"""
-
-NODE_CLASS_MAPPINGS = {"AperiodicAssignHeights": AperiodicAssignHeights}
+NODE_CLASS_MAPPINGS = { "AperiodicAssignHeights": AperiodicAssignHeights }
