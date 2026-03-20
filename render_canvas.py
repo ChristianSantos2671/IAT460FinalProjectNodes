@@ -6,7 +6,7 @@ class RenderCanvasNode:
         return {
             "required": {
                 "height_data": ("HEIGHT_DATA",),
-                "filename": ("STRING", {"default": "aperiodic_canvas.html"}),
+                "filename": ("STRING", {"default": "canvas.html"}),
             },
         }
 
@@ -16,18 +16,19 @@ class RenderCanvasNode:
     CATEGORY = "Aperiodic"
 
     def render(self, height_data, filename):
-        # Path to ComfyUI/output
-        output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "output")
-        os.makedirs(output_dir, exist_ok=True)
-        path = os.path.join(output_dir, filename)
+        # Force the path to your SFU project output
+        output_path = r"D:\Users\2003c\Documents\SFU\IAT 460\FinalProject\ComfyUI\output"
+        os.makedirs(output_path, exist_ok=True)
+        full_path = os.path.join(output_path, filename)
 
-        # Pull the HTML string generated in the Assign Heights node
-        html_content = height_data.get("html", "<html><body>No Canvas Data Found</body></html>")
+        html_content = height_data.get("html", "")
+        
+        if not html_content or "const tileData = [];" in html_content:
+            print("WARNING: Render node received empty tile data!")
 
-        with open(path, "w", encoding="utf-8") as f:
+        with open(full_path, "w", encoding="utf-8") as f:
             f.write(html_content)
-
-        print(f"SUCCESS: Aperiodic Canvas saved to {path}")
+            
         return {}
 
 NODE_CLASS_MAPPINGS = {"RenderCanvasNode": RenderCanvasNode}

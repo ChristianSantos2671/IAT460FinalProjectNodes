@@ -16,12 +16,15 @@ class HatTilingNode:
 
     RETURN_TYPES = ("TILING_DATA",)
     FUNCTION = "generate"
-    CATEGORY = "Aperiodic/Generation"
+    CATEGORY = "Aperiodic"
 
-    def generate(self, iterations, scale):
-        # Logic from your original hat_tiling.py
-        # Result should be the object/list passed to fill_canvas
-        tiling_data = {"iterations": iterations, "scale": scale} 
-        return (tiling_data,)
+    def generate(self, iterations):
+        # IMPORTANT: Replace this with your actual generation logic
+        # For testing, we'll create one dummy 'Hat' tile (a quadrilateral)
+        sample_tile = [[0, 0], [100, 0], [100, 100], [0, 100]]
+        tiles = [sample_tile for _ in range(5)] # Create 5 tiles
+        
+        # This dictionary is what 'TILING_DATA' actually is
+        return ({"tiles": tiles, "iterations": iterations},)
 
 NODE_CLASS_MAPPINGS = {"HatTilingNode": HatTilingNode}
