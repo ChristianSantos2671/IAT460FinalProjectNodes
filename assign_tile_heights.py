@@ -7,7 +7,7 @@ class AperiodicAssignHeights:
         return {
             "required": {
                 "canvas_data": ("CANVAS_DATA",),
-                "seed": ("INT", {"default": 0}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
             },
         }
 
@@ -16,26 +16,28 @@ class AperiodicAssignHeights:
     CATEGORY = "Aperiodic"
 
     def assign(self, canvas_data, seed):
-        # CRITICAL: Debugging print to see if data is actually arriving
+        # Fix: Look for 'tiles' inside canvas_data
         tiles = canvas_data.get("tiles", [])
-        print(f"DEBUG: AssignHeights received {len(tiles)} tiles")
-
         random.seed(seed)
+        
+        # Logic from your original project: 1 height per tile
         heights = [random.randint(1, 5) for _ in range(len(tiles))]
         
-        # Convert to JSON for JS injection
+        # Convert Python lists to JSON strings for the HTML template
         tiles_js = json.dumps(tiles)
         heights_js = json.dumps(heights)
 
-        html_template = f"""
+        # Plotly Template (mimics your original project)
+        plotly_html = f"""
         <html>
-        <head><script src="https://cdn.plot.ly/plotly-3.4.0.min.js"></script></head>
+        <head>
+            <script src="https://cdn.plot.ly/plotly-3.4.0.min.js"></script>
+        </head>
         <body>
-            <div id="plot"></div>
+            <div id="plot" style="width:100%;height:100vh;"></div>
             <script>
                 const tileData = {tiles_js};
                 const heightData = {heights_js};
-                console.log("Tiles received in JS:", tileData);
                 
                 const traces = tileData.map((tile, i) => ({{
                     x: tile.map(p => p[0]),
@@ -43,19 +45,21 @@ class AperiodicAssignHeights:
                     fill: 'toself',
                     type: 'scatter',
                     mode: 'lines',
-                    fillcolor: `rgba(100, 150, ${{heightData[i] * 40}}, 0.8)`,
+                    fillcolor: `rgba(40, 120, ${{heightData[i] * 45}}, 0.7)`,
                     line: {{ color: 'black', width: 1 }}
                 }}));
 
                 Plotly.newPlot('plot', traces, {{
-                    yaxis: {{ scaleanchor: 'x' }},
+                    showlegend: false,
+                    xaxis: {{ visible: false }},
+                    yaxis: {{ visible: false, scaleanchor: 'x' }},
                     margin: {{ t: 0, b: 0, l: 0, r: 0 }}
                 }});
             </script>
         </body>
         </html>
         """
-        # Pass everything forward
-        return ({"html": html_template, "panel_html": html_template, "tiles": tiles},)
 
-NODE_CLASS_MAPPINGS = { "AperiodicAssignHeights": AperiodicAssignHeights }
+        return ({"html": plotly_html, "panel_html": plotly_html, "tiles": tiles},)
+
+NODE_CLASS_MAPPINGS = {"AperiodicAssignHeights": AperiodicAssignHeights}

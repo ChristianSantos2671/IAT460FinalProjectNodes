@@ -5,17 +5,19 @@ class FillCanvasNode:
             "required": {
                 "tiling_data": ("TILING_DATA",),
                 "width": ("INT", {"default": 800}),
-                "height": ("INT", {"default": 600}),
+                "height": ("INT", {"default": 800}),
             },
         }
 
     RETURN_TYPES = ("CANVAS_DATA",)
     FUNCTION = "fill"
-    CATEGORY = "Aperiodic/Processing"
+    CATEGORY = "Aperiodic"
 
     def fill(self, tiling_data, width, height):
-        # Implementation from your fill_canvas.py
-        canvas_data = {"data": tiling_data, "w": width, "h": height}
-        return (canvas_data,)
+        # We ensure the dictionary contains the 'tiles' key
+        tiles = tiling_data.get("tiles", [])
+        
+        # Return the dictionary properly wrapped in a tuple
+        return ({"tiles": tiles, "width": width, "height": height},)
 
 NODE_CLASS_MAPPINGS = {"FillCanvasNode": FillCanvasNode}

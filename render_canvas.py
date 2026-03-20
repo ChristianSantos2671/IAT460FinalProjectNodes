@@ -16,19 +16,18 @@ class RenderCanvasNode:
     CATEGORY = "Aperiodic"
 
     def render(self, height_data, filename):
-        # Force the path to your SFU project output
-        output_path = r"D:\Users\2003c\Documents\SFU\IAT 460\FinalProject\ComfyUI\output"
+        # Navigate to the ComfyUI/output folder
+        base_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        output_path = os.path.join(base_path, "output")
         os.makedirs(output_path, exist_ok=True)
-        full_path = os.path.join(output_path, filename)
-
-        html_content = height_data.get("html", "")
         
-        if not html_content or "const tileData = [];" in html_content:
-            print("WARNING: Render node received empty tile data!")
+        full_path = os.path.join(output_path, filename)
+        html_content = height_data.get("html", "<h1>No Data</h1>")
 
         with open(full_path, "w", encoding="utf-8") as f:
             f.write(html_content)
             
+        print(f"File successfully saved: {full_path}")
         return {}
 
 NODE_CLASS_MAPPINGS = {"RenderCanvasNode": RenderCanvasNode}
