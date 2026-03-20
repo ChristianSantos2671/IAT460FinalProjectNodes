@@ -1,6 +1,9 @@
 import os
 
 class RenderPanelNode:
+    def __init__(self):
+        pass
+    
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -16,16 +19,19 @@ class RenderPanelNode:
     CATEGORY = "Aperiodic"
 
     def render(self, height_data, filename):
-        output_dir = r"D:\Users\2003c\Documents\SFU\IAT 460\FinalProject\ComfyUI\output"
+        output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "output")
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
+            
         path = os.path.join(output_dir, filename)
         
-        # --- THE FIX: Ensure this node pulls the Panel HTML ---
-        html_content = height_data.get("panel_html", "<html><body>No Panel Data</body></html>")
+        # Extract Panel HTML (Assuming your logic stores it in 'panel_html')
+        html_content = height_data.get("panel_html", "<html><body>No Panel Data Received</body></html>")
         
         with open(path, "w", encoding="utf-8") as f:
             f.write(html_content)
             
-        print(f"SUCCESS: File written to {path}")
+        print(f"Aperiodic Panel successfully saved to: {path}")
         return {}
 
 NODE_CLASS_MAPPINGS = {"RenderPanelNode": RenderPanelNode}

@@ -1,6 +1,9 @@
 import os
 
 class RenderCanvasNode:
+    def __init__(self):
+        pass
+    
     @classmethod
     def INPUT_TYPES(s):
         return {
@@ -16,22 +19,22 @@ class RenderCanvasNode:
     CATEGORY = "Aperiodic"
 
     def render(self, height_data, filename):
-        # Use the specific path from your log
-        output_dir = r"D:\Users\2003c\Documents\SFU\IAT 460\FinalProject\ComfyUI\output"
+        # Setup the output path
+        output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "output")
         if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
+            os.makedirs(output_dir, exist_ok=True)
             
         path = os.path.join(output_dir, filename)
         
-        # --- THE FIX: You must actually write the data here ---
-        # Replace 'height_data["html_string"]' with whatever variable 
-        # in your project contains the actual HTML code.
-        html_content = height_data.get("html", "<html><body>No Data Found</body></html>")
+        # Extract HTML from the dictionary passed by the previous node
+        # We use .get() to avoid crashing if the key is missing
+        html_content = height_data.get("html", "<html><body>No Canvas Data Received</body></html>")
         
+        # Physically write the file to disk
         with open(path, "w", encoding="utf-8") as f:
             f.write(html_content)
-        
-        print(f"SUCCESS: File written to {path}")
+            
+        print(f"Aperiodic Canvas successfully saved to: {path}")
         return {}
 
 NODE_CLASS_MAPPINGS = {"RenderCanvasNode": RenderCanvasNode}
