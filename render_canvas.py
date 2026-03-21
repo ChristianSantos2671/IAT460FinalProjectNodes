@@ -1,33 +1,22 @@
-import os
+import os, folder_paths, matplotlib.pyplot as plt
+from matplotlib.patches import Polygon as MplPolygon
+from matplotlib.collections import PatchCollection
 
 class RenderCanvasNode:
     @classmethod
     def INPUT_TYPES(s):
-        return {
-            "required": {
-                "height_data": ("HEIGHT_DATA",),
-                "filename": ("STRING", {"default": "canvas.html"}),
-            },
-        }
-
-    RETURN_TYPES = ()
+        return {"required": {"height_data": ("HEIGHT_DATA",), "filename": ("STRING", {"default": "tiling_2d.png"})}}
     OUTPUT_NODE = True
+    RETURN_TYPES = ()
     FUNCTION = "render"
-    CATEGORY = "Aperiodic"
+    CATEGORY = "Aperiodic Tiles"
 
     def render(self, height_data, filename):
-        # Navigate to the ComfyUI/output folder
-        base_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        output_path = os.path.join(base_path, "output")
-        os.makedirs(output_path, exist_ok=True)
-        
-        full_path = os.path.join(output_path, filename)
-        html_content = height_data.get("html", "<h1>No Data</h1>")
-
-        with open(full_path, "w", encoding="utf-8") as f:
-            f.write(html_content)
-            
-        print(f"File successfully saved: {full_path}")
-        return {}
-
-NODE_CLASS_MAPPINGS = {"RenderCanvasNode": RenderCanvasNode}
+        tiles, w, h = height_data["tiles"], height_data["canvas_width"], height_data["canvas_height"]
+        fig, ax = plt.subplots(figsize=(w/100, h/100))
+        ax.set_xlim(0, w); ax.set_ylim(h, 0); ax.axis("off")
+        patches = [MplPolygon(tile["vertices"], closed=True) for tile in tiles]
+        ax.add_collection(PatchCollection(patches, facecolor="#5B8DB8", edgecolor="#1a1a2e", linewidth=0.6))
+        path = os.path.join(folder_paths.get_output_directory(), filename)
+        fig.savefig(path, bbox_inches="tight", pad_inches=0); plt.close(fig)
+        return {"ui": {"text": [f"Saved to {path}"]}}
