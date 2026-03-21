@@ -1,21 +1,28 @@
-from .hat_tiling import HatTilingNode
-from .fill_canvas import FillCanvasNode
-from .assign_tile_heights import AssignTileHeightsNode
-from .render_canvas import RenderCanvasNode
-from .render_panel import RenderPanel3DNode
+from .nodes import (
+    AperiodicHatTiling,
+    AperiodicFillCanvas,
+    AperiodicAssignHeights,
+    AperiodicRenderCanvas,
+    AperiodicRenderPanel,
+    AperiodicExportSTL
+)
 
 NODE_CLASS_MAPPINGS = {
-    "HatTilingNode": HatTilingNode,
-    "FillCanvasNode": FillCanvasNode,
-    "AssignTileHeightsNode": AssignTileHeightsNode,
-    "RenderCanvasNode": RenderCanvasNode,
-    "RenderPanel3DNode": RenderPanel3DNode,
+    "AperiodicHatTiling": AperiodicHatTiling,
+    "AperiodicFillCanvas": AperiodicFillCanvas,
+    "AperiodicAssignHeights": AperiodicAssignHeights,
+    "AperiodicRenderCanvas": AperiodicRenderCanvas,
+    "AperiodicRenderPanel": AperiodicRenderPanel,
+    "AperiodicExportSTL": AperiodicExportSTL
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "HatTilingNode": "1. Hat Tiling Generator",
-    "FillCanvasNode": "2. Aperiodic Fill Canvas",
-    "AssignTileHeightsNode": "3. Assign Tile Heights & Slant",
-    "RenderCanvasNode": "4. Render 2D Layout",
-    "RenderPanel3DNode": "5. Render 3D Panel",
+    "AperiodicHatTiling": "Hat Tiling Generator",
+    "AperiodicFillCanvas": "Fill Canvas (2D Layout)",
+    "AperiodicAssignHeights": "Assign Tile Heights & Tilt",
+    "AperiodicRenderCanvas": "Render 2D Canvas (HTML)",
+    "AperiodicRenderPanel": "Render 3D Panel (HTML)",
+    "AperiodicExportSTL": "Export 3D Panel (STL)"
 }
+
+__all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
