@@ -184,7 +184,9 @@ def _build_tile_mesh(tile: dict[str, Any]) -> tuple[
 # ---------------------------------------------------------------------------
 
 def _height_colour(height: float, min_h: float, max_h: float, idx: int) -> str:
-    t = (height - min_h) / max(max_h - min_h, 1e-9)
+    # 1. Clamp t between 0 and 1 to prevent negative colors
+    t = max(0.0, min(1.0, (height - min_h) / max(max_h - min_h, 1e-9)))
+    
     if idx % 2 == 0:
         # Blue palette
         r = int(13  + (227 - 13)  * (1 - t))
@@ -195,6 +197,10 @@ def _height_colour(height: float, min_h: float, max_h: float, idx: int) -> str:
         r = int(191 + (255 - 191) * (1 - t))
         g = int(54  + (243 - 54)  * (1 - t))
         b = int(12  + (224 - 12)  * (1 - t))
+    
+    # 2. Final safety clamp before hex conversion
+    r, g, b = [max(0, min(255, val)) for val in (r, g, b)]
+    
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
@@ -235,16 +241,31 @@ def render_panel(
     meshes = []
     for idx, tile in enumerate(tiles):
         xs, ys, zs, i_f, j_f, k_f = _build_tile_mesh(tile)
-        colour = _height_colour(tile["height"], min_h, max_h, idx)
+        n_verts = len(tile["vertices"])
+        
+        # Define colors
+        main_colour = _height_colour(tile["height"], min_h, max_h, idx)
+        bottom_colour = "#2c2c44"  # A darker, consistent base color for the bottom
+
+        # Create a vertex color list: 
+        # First n_verts (bottom) get bottom_colour, next n_verts (top) get main_colour
+        v_colors = [bottom_colour] * n_verts + [main_colour] * n_verts
+
         mesh = go.Mesh3d(
             x=xs, y=ys, z=zs,
             i=i_f, j=j_f, k=k_f,
-            color=colour,
-            opacity=0.92,
+            # Use vertexcolor to ensure bottom and top faces are distinct
+            vertexcolor=v_colors,
+            opacity=1.0, # Solid looks better for architectural panels
             flatshading=True,
-            lighting=dict(ambient=0.4, diffuse=0.7, specular=0.3,
-                          roughness=0.6, fresnel=0.2),
-            lightposition=dict(x=canvas_w*0.5, y=-canvas_h, z=max_h*5),
+            # Adding 'lighting' properties to help define the edges
+            lighting=dict(
+                ambient=0.5,
+                diffuse=0.8,
+                specular=0.5,
+                roughness=0.3
+            ),
+            lightposition=dict(x=canvas_w*0.5, y=-canvas_h, z=max_h*10),
             showscale=False,
             hovertemplate=(
                 f"Height: {tile['height']:.1f}<br>"

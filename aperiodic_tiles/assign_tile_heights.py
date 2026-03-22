@@ -1,110 +1,67 @@
-"""
-assign_tile_heights.py
-======================
-Provides assign_tile_heights() — takes the 2-D canvas description produced by
-fill_canvas() and extends each tile into the third dimension by assigning it:
-    • a random height  (extruded in the +z direction)
-    • a slant vector  (the surface normal of the top face, giving it a tilt)
-
-Output structure (a "panel dict")
-----------------------------------
-The returned dict is a copy of the input canvas dict with each tile entry
-augmented:
-{
-    "tile_size":  float,
-    "canvas_width":  float,
-    "canvas_height": float,
-    "tiles": [
-        {
-            "vertices": [[x0,y0], ..., [xN,yN]],  # polygon vertices (unchanged)
-            # --- new 3-D fields ---
-            "height":  float,           # extrusion height in the +z direction
-            "slant":   [float, float, float],  # unit normal of the top face
-                                                # (points roughly upward in +z)
-        },
-        ...
-    ]
-}
-
-The slant vector is chosen as follows:
-    1. A random tilt magnitude θ ∈ [0°, max_tilt_deg] is drawn.
-    2. A random azimuth φ ∈ [0°, 360°) is drawn.
-    3. The unit normal is  n = (sin θ cos φ,  sin θ sin φ,  cos θ).
-   This means the top surface tilts by at most max_tilt_deg away from
-   horizontal.  When θ = 0 the top face is perfectly flat (normal = (0, 0, 1)).
-"""
-
 from __future__ import annotations
 import copy
 import math
 import random
 from typing import Any
 
-
 def assign_tile_heights(
     canvas: dict[str, Any],
     min_height: float,
     max_height: float,
-    max_tilt_deg: float = 30.0,
+    mode: str = "radial_ripple",
+    frequency: float = 0.05,
+    tilt_strength: float = 0.2,
+    angle: float = 0.0,
     seed: int | None = None,
 ) -> dict[str, Any]:
-    """
-    Assign random heights and slant vectors to each tile in a canvas layout.
-
-    Parameters
-    ----------
-    canvas : dict
-        The canvas dictionary returned by fill_canvas().
-    min_height : float
-        Minimum extrusion height for a tile (same units as pixel coordinates).
-    max_height : float
-        Maximum extrusion height.
-    max_tilt_deg : float, optional
-        Maximum tilt of the top surface away from horizontal (degrees).
-        0 → all tops are perfectly flat.  Default is 30°.
-    seed : int or None, optional
-        Random seed for reproducibility.  If None the result is non-
-        deterministic.
-
-    Returns
-    -------
-    dict
-        A "panel" dictionary: a deep copy of *canvas* with ``height`` and
-        ``slant`` added to each tile entry.
-
-    Raises
-    ------
-    ValueError
-        If min_height > max_height or either is negative.
-    """
-    if min_height < 0 or max_height < 0:
-        raise ValueError("Heights must be non-negative.")
-    if min_height > max_height:
-        raise ValueError(
-            f"min_height ({min_height}) must be <= max_height ({max_height})."
-        )
-    if max_tilt_deg < 0 or max_tilt_deg > 90:
-        raise ValueError("max_tilt_deg must be in [0, 90].")
-
-    rng = random.Random(seed)
+    
     panel = copy.deepcopy(canvas)
+    
+    width = canvas.get("canvas_width", 1000.0)
+    height_canv = canvas.get("canvas_height", 1000.0)
+    center_x, center_y = width / 2, height_canv / 2
+    
+    rad_a = math.radians(angle)
+    cos_a, sin_a = math.cos(rad_a), math.sin(rad_a)
+    h_range = max_height - min_height
 
     for tile in panel["tiles"]:
-        # height
-        tile["height"] = rng.uniform(min_height, max_height)
+        verts = tile["vertices"]
+        avg_x = sum(v[0] for v in verts) / len(verts)
+        avg_y = sum(v[1] for v in verts) / len(verts)
+        
+        # Default state (Flat)
+        slant = [0.0, 0.0, 1.0]
+        h_val = min_height
 
-        # slant (top-face unit normal)
-        theta = math.radians(rng.uniform(0.0, max_tilt_deg))
-        phi   = math.radians(rng.uniform(0.0, 360.0))
-        tile["slant"] = [
-            math.sin(theta) * math.cos(phi),
-            math.sin(theta) * math.sin(phi),
-            math.cos(theta),
-        ]
+        if mode == "radial_ripple":
+            dx, dy = avg_x - center_x, avg_y - center_y
+            d = math.sqrt(dx**2 + dy**2)
+            val = (math.sin(d * frequency) + 1) / 2
+            h_val = min_height + (val * h_range)
+            
+            slope = math.cos(d * frequency) * tilt_strength
+            nx = (dx / d * slope) if d > 0 else 0
+            ny = (dy / d * slope) if d > 0 else 0
+            slant = [nx, ny, 1.0]
 
-    panel["type"]        = "panel"
-    panel["min_height"]  = min_height
-    panel["max_height"]  = max_height
-    panel["max_tilt_deg"] = max_tilt_deg
+        elif mode == "linear_ripple":
+            projected = avg_x * cos_a + avg_y * sin_a
+            val = (math.sin(projected * frequency) + 1) / 2
+            h_val = min_height + (val * h_range)
+            
+            slope = math.cos(projected * frequency) * tilt_strength
+            slant = [cos_a * slope, sin_a * slope, 1.0]
 
+        elif mode == "noise":
+            # Coherent height variation
+            val = (math.sin(avg_x * frequency) + math.cos(avg_y * frequency)) / 2
+            val = (val + 1) / 2
+            h_val = min_height + (val * h_range)
+            slant = [0.0, 0.0, 1.0]
+
+        tile["height"] = float(h_val)
+        tile["slant"] = slant
+
+    panel["type"] = "panel"
     return panel

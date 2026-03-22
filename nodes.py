@@ -59,26 +59,36 @@ class AperiodicAssignHeights:
         return {
             "required": {
                 "tile_polygons": ("TILE_POLYGONS",),
-                "min_height": ("FLOAT", {"default": 2.0, "min": 0.0}),
-                "max_height": ("FLOAT", {"default": 10.0, "min": 0.0}),
-                "max_tilt_deg": ("FLOAT", {"default": 30.0, "min": 0.0, "max": 90.0}),
-                "seed": ("INT", {"default": 0, "min": 0}),
+                "min_height": ("FLOAT", {"default": 2.0, "min": 0.0, "max": 100.0, "step": 0.1}),
+                "max_height": ("FLOAT", {"default": 10.0, "min": 0.0, "max": 100.0, "step": 0.1}),
+                # Removed "random" from the list below
+                "mode": (["radial_ripple", "linear_ripple", "noise"], {"default": "radial_ripple"}),
+                "frequency": ("FLOAT", {"default": 0.05, "min": 0.001, "max": 0.5, "step": 0.001}),
+                "tilt_strength": ("FLOAT", {"default": 0.2, "min": 0.0, "max": 5.0, "step": 0.01}),
+                "angle": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 360.0, "step": 1.0}),
+                "seed": ("INT", {"default": 0, "min": 0, "max": 0xffffffffffffffff}),
             }
         }
+
     RETURN_TYPES = ("TILE_HEIGHT_DATA",)
     FUNCTION = "execute"
-    CATEGORY = CAT
+    CATEGORY = "Aperiodic Tiles"
 
-    def execute(self, tile_polygons, min_height, max_height, max_tilt_deg, seed):
-        # Calls the function from assign_tile_heights.py
-        panel_dict = assign_tile_heights.assign_tile_heights(
+    def execute(self, tile_polygons, min_height, max_height, mode, frequency, tilt_strength, angle, seed):
+        from .aperiodic_tiles import assign_tile_heights
+        
+        tile_height_data = assign_tile_heights.assign_tile_heights(
             canvas=tile_polygons,
             min_height=min_height,
             max_height=max_height,
-            max_tilt_deg=max_tilt_deg,
+            mode=mode,
+            frequency=frequency,
+            tilt_strength=tilt_strength,
+            angle=angle,
             seed=seed
         )
-        return (panel_dict,)
+
+        return (tile_height_data,)
 
 class AperiodicRenderCanvas:
     @classmethod
