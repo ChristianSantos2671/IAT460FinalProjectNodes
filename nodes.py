@@ -60,7 +60,7 @@ class AperiodicFillCanvas:
         return {
             "required": {
                 "hat_data": ("HAT_DATA",),
-                "gap": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 20.0}),
+                "gap": ("FLOAT", {"default": 5.0, "min": 0.0, "max": 20.0}),
             }
         }
     RETURN_TYPES = ("TILE_POLYGONS", "RECT_BOUNDS")
@@ -84,8 +84,8 @@ class AperiodicAssignHeights:
         return {
             "required": {
                 "tile_polygons": ("TILE_POLYGONS",),
-                "min_height": ("FLOAT", {"default": 2.0, "min": 0.0, "max": 100.0, "step": 0.1}),
-                "max_height": ("FLOAT", {"default": 10.0, "min": 0.0, "max": 100.0, "step": 0.1}),
+                "min_height": ("FLOAT", {"default": 10.0, "min": 0.0, "max": 100.0, "step": 0.1}),
+                "max_height": ("FLOAT", {"default": 50.0, "min": 0.0, "max": 100.0, "step": 0.1}),
                 # Removed "random" from the list below
                 "mode": (["radial_ripple", "linear_ripple", "noise"], {"default": "radial_ripple"}),
                 "frequency": ("FLOAT", {"default": 0.05, "min": 0.001, "max": 0.5, "step": 0.001}),
@@ -167,7 +167,7 @@ class AperiodicExportSTL:
             "required": {
                 "tile_height_data": ("TILE_HEIGHT_DATA",),
                 "filename": ("STRING", {"default": "aperiodic_tiling.stl"}),
-                "base_thickness": ("FLOAT", {"default": 2.0, "min": 0.0, "max": 20.0, "step": 0.1}),
+                "base_thickness": ("FLOAT", {"default": 10.0, "min": 0.0, "max": 20.0, "step": 0.1}),
                 "scale": ("FLOAT", {"default": 1.0, "min": 0.001, "max": 100.0, "step": 0.001}),
             }
         }
