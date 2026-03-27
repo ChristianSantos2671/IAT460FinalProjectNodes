@@ -272,14 +272,14 @@ def render_panel(
     for idx, tile in enumerate(tiles):
         xs, ys, zs, i_f, j_f, k_f = _build_tile_mesh(tile)
 
-        # A single uniform colour per tile avoids the per-triangle shading
-        # artefact that appears when vertexcolor + flatshading are combined.
-        # flatshading=True shades each triangle by its own face normal; with
-        # vertexcolor Plotly can produce visibly different shades for each
-        # triangle of the (mathematically flat) top face, making it look as
-        # though the top has multiple different slants.  Using a single color
-        # string lets Plotly shade the mesh with smooth lighting instead,
-        # so the flat top reads as one continuous surface.
+        # flatshading=True gives each triangle its own face normal, so every
+        # wall quad shades according to the direction it faces — this is what
+        # makes individual side walls distinguishable from one another and
+        # matches the appearance of the STL in a 3D viewer.
+        # A single color= string (not vertexcolor) is used so that the top
+        # face's ear-clip triangles all receive the same base colour before
+        # lighting is applied; since they are coplanar their face normals are
+        # identical and they shade uniformly even with flatshading=True.
         main_colour = _height_colour(tile["height"], min_h, max_h, idx)
 
         mesh = go.Mesh3d(
@@ -287,15 +287,25 @@ def render_panel(
             i=i_f, j=j_f, k=k_f,
             color=main_colour,
             opacity=1.0,
-            flatshading=False,   # smooth lighting keeps the flat top looking flat
+            flatshading=True,
             lighting=dict(
-                ambient=0.4,
-                diffuse=0.9,
-                specular=0.3,
-                roughness=0.5,
-                fresnel=0.1,
+                # High ambient prevents walls from going completely black on
+                # the shadow side; moderate diffuse provides clear directional
+                # shading; low specular avoids harsh highlights.
+                ambient=0.55,
+                diffuse=0.7,
+                specular=0.15,
+                roughness=0.8,
+                fresnel=0.05,
             ),
-            lightposition=dict(x=canvas_w * 0.5, y=-canvas_h, z=max_h * 10),
+            # Key light positioned upper-left in world space (positive X and Y,
+            # well above the scene in Z) so the light arrives from above-front
+            # and the lower halves of vertical walls fall into natural shadow.
+            lightposition=dict(
+                x=canvas_w * 0.3,
+                y=canvas_h * 1.5,
+                z=max_h * 20,
+            ),
             showscale=False,
             hovertemplate=(
                 f"Height: {tile['height']:.1f}<br>"
