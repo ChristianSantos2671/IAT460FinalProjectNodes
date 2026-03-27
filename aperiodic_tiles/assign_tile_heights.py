@@ -1,3 +1,28 @@
+"""
+assign_tile_heights.py
+======================
+Provides assign_tile_heights() — takes a canvas dict returned by fill_canvas()
+and augments each tile with a scalar height and a surface-normal slant vector,
+producing a "panel" dict that can be passed to render_panel().
+
+Height and tilt are driven by one of three procedural modes:
+
+    radial_ripple  — concentric sine-wave rings expanding from the canvas
+                     centre; the slope of the wave determines the tilt.
+    linear_ripple  — parallel sine-wave bands travelling in a user-specified
+                     direction (angle); useful for wave-like surface profiles.
+    noise          — a deterministic sin/cos pattern sampled at each tile's
+                     centroid; produces a grid-aligned undulation with no tilt.
+
+Output structure (a "panel" dict)
+----------------------------------
+Extends the canvas dict with:
+    • tile["height"]  float  — extrusion height at the tile's centroid (px).
+    • tile["slant"]   [nx, ny, nz]  — unnormalised surface normal of the top
+                                      face; passed to render_panel._top_vertex().
+    • panel["type"]   "panel"  — marker used by downstream nodes.
+"""
+
 from __future__ import annotations
 import copy
 import math

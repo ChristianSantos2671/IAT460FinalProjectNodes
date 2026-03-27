@@ -1,3 +1,16 @@
+"""
+__init__.py
+===========
+Package entry-point for the ComfyUI-AperiodicTiles custom node set.
+
+Imports all node classes from nodes.py and re-exports the two dicts that
+ComfyUI requires to register and display the nodes:
+
+    NODE_CLASS_MAPPINGS        — maps node ID strings to their Python classes.
+    NODE_DISPLAY_NAME_MAPPINGS — maps node ID strings to human-readable labels
+                                 shown in the ComfyUI node browser.
+"""
+
 from .nodes import (
     AperiodicHatTiling,
     AperiodicFillCanvas,

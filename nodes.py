@@ -1,6 +1,31 @@
+"""
+nodes.py
+========
+Defines all ComfyUI custom nodes for the Aperiodic Tiles package.
+
+Node pipeline (left to right):
+
+    AperiodicHatTiling      — generates raw hat-tile geometry on a hex lattice.
+    AperiodicFillCanvas     — filters and scales tiles to fill a pixel canvas,
+                              returning a canvas dict and bounding-box bounds.
+    AperiodicAssignHeights  — adds height and surface-tilt data to every tile,
+                              producing a panel dict ready for 3-D output.
+    AperiodicRenderCanvas   — renders the 2-D tile layout as an interactive
+                              Plotly HTML file (via render_canvas.py).
+    AperiodicRenderPanel    — renders the 3-D extruded panel as an interactive
+                              Plotly HTML file (via render_panel.py).
+    AperiodicExportSTL      — exports the 3-D panel as a binary STL file for
+                              manufacturing / 3-D printing.
+
+All nodes are registered in NODE_CLASS_MAPPINGS at the bottom of this file and
+re-exported through __init__.py so ComfyUI discovers them automatically.
+"""
+
 import os
+import sys
 import numpy as np
 import folder_paths
+from pathlib import Path
 from .aperiodic_tiles import hat_tiling, fill_canvas, assign_tile_heights, render_canvas, render_panel
 
 CAT = "Aperiodic Tiles"
@@ -142,36 +167,82 @@ class AperiodicExportSTL:
             "required": {
                 "tile_height_data": ("TILE_HEIGHT_DATA",),
                 "filename": ("STRING", {"default": "aperiodic_tiling.stl"}),
+                "base_thickness": ("FLOAT", {"default": 2.0, "min": 0.0, "max": 20.0, "step": 0.1}),
+                "scale": ("FLOAT", {"default": 1.0, "min": 0.001, "max": 100.0, "step": 0.001}),
             }
         }
+
     RETURN_TYPES = ("STRING",)
     FUNCTION = "execute"
-    CATEGORY = CAT
+    CATEGORY = "Aperiodic Tiles"
     OUTPUT_NODE = True
 
-    def execute(self, tile_height_data, filename):
-        from stl import mesh
+    def execute(self, tile_height_data, filename, base_thickness, scale):
+        # --- ROBUST IMPORT FIX ---
+        # Manually add the current directory to sys.path to bypass the hyphen-path error
+        current_dir = str(Path(__file__).parent.resolve())
+        if current_dir not in sys.path:
+            sys.path.append(current_dir)
+        
+        try:
+            # Import from the injected path
+            import render_panel
+            from stl import mesh
+        except ImportError as e:
+            return {"ui": {"text": [f"Error importing render_panel: {str(e)}"]}, "result": ("",)}
+
         tiles = tile_height_data["tiles"]
+        canvas_w = tile_height_data["canvas_width"]
+        canvas_h = tile_height_data["canvas_height"]
+        
         all_facets = []
 
+        # 1. Generate the Floor Baseplate
+        fx, fy, fz, fi, fj, fk = render_panel._get_baseplate_mesh(
+            canvas_w, 
+            canvas_h, 
+            base_thickness, 
+            0.0 
+        )
+        
+        # Apply scaling to the floor vertices
+        f_verts = np.column_stack([fx, fy, fz]) * scale
+        
+        floor_indices = [
+            (0, 2, 1), (0, 3, 2), (4, 5, 6), (4, 6, 7),
+            (0, 1, 5), (0, 5, 4), (1, 2, 6), (1, 6, 5),
+            (2, 3, 7), (2, 7, 6), (3, 0, 4), (3, 4, 7)
+        ]
+        
+        for i, j, k in floor_indices:
+            all_facets.append([f_verts[i], f_verts[j], f_verts[k]])
+
+        # 2. Generate each Tile Prism
         for tile in tiles:
-            # Using the function we just updated above
-            xs, ys, zs, i_f, j_f, k_f = render_panel._build_tile_mesh(tile)
+            xs, ys, zs, i_f, j_f, k_f = render_panel._build_tile_mesh(tile, 0.0)
             
-            # Prepare vertices for numpy-stl
-            vertices = np.column_stack([xs, ys, zs])
+            # Apply scaling to the tile vertices
+            vertices = np.column_stack([xs, ys, zs]) * scale
+            
             for i, j, k in zip(i_f, j_f, k_f):
                 all_facets.append([vertices[i], vertices[j], vertices[k]])
 
-        # Create the mesh and save
-        stl_mesh = mesh.Mesh(np.zeros(len(all_facets), dtype=mesh.Mesh.dtype))
-        for i, facet in enumerate(all_facets):
-            stl_mesh.vectors[i] = facet
+        # 3. Create the STL Mesh
+        num_facets = len(all_facets)
+        stl_data = np.zeros(num_facets, dtype=mesh.Mesh.dtype)
+        export_mesh = mesh.Mesh(stl_data)
 
+        for i, facet in enumerate(all_facets):
+            export_mesh.vectors[i] = facet
+
+        # 4. Save to ComfyUI Output Directory
+        if not filename.lower().endswith(".stl"):
+            filename += ".stl"
+            
         out_path = os.path.join(folder_paths.get_output_directory(), filename)
-        stl_mesh.save(out_path)
-        
-        return {"ui": {"text": [out_path]}, "result": (out_path,)}
+        export_mesh.save(out_path)
+
+        return {"ui": {"text": [f"Saved to: {out_path} (Scale: {scale})"]}, "result": (out_path,)}
 
 # Mapping for ComfyUI to recognize the nodes
 NODE_CLASS_MAPPINGS = {
