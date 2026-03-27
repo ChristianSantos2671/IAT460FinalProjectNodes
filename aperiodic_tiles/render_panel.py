@@ -53,14 +53,42 @@ def _top_vertex(
     return (bx, by, height + dz)
 
 
+def _signed_area(poly: list[tuple[float, float]]) -> float:
+    """Signed area via the shoelace formula. Positive = CCW, negative = CW."""
+    n = len(poly)
+    area = 0.0
+    for i in range(n):
+        x0, y0 = poly[i]
+        x1, y1 = poly[(i + 1) % n]
+        area += x0 * y1 - x1 * y0
+    return area * 0.5
+
+
 def _ear_clip_triangulate(poly: list[tuple[float, float]]) -> list[tuple[int, int, int]]:
     """
     Ear-clipping triangulation for a simple (non-self-intersecting) polygon.
     Returns a list of (i, j, k) index triples.
+
+    The algorithm assumes CCW winding (positive signed area).  If the input
+    polygon is CW (negative signed area, common in screen-space coords where
+    Y increases downward), the vertex order is reversed internally so that
+    reflex-vertex detection works correctly on concave hat tiles.
     """
     n = len(poly)
     if n < 3:
         return []
+
+    # Ensure CCW winding so the ear-clip cross-product test is correct.
+    # A CW polygon (negative signed area, common in screen-space where Y is
+    # downward) has its reflex vertices misidentified if we don't flip first.
+    # We reverse the vertex list, triangulate, then map indices back to the
+    # original ordering so callers always get indices into their own list.
+    if _signed_area(poly) < 0:
+        poly = poly[::-1]
+        # fwd[new_index] = original_index
+        fwd = [n - 1 - k for k in range(n)]
+    else:
+        fwd = list(range(n))
 
     def cross2d(o, a, b):
         return (a[0]-o[0])*(b[1]-o[1]) - (a[1]-o[1])*(b[0]-o[0])
@@ -93,8 +121,8 @@ def _ear_clip_triangulate(poly: list[tuple[float, float]]) -> list[tuple[int, in
     while len(ring) > 3:
         if attempts > len(ring) ** 2:
             # fallback: fan triangulation
-            triangles += [(ring[0], ring[i], ring[i+1]) for i in range(1, len(ring)-1)]
-            return triangles
+            raw = [(ring[0], ring[i], ring[i+1]) for i in range(1, len(ring)-1)]
+            return [(fwd[a], fwd[b], fwd[c]) for a, b, c in raw]
         found = False
         for i in range(len(ring)):
             if is_ear(i, ring):
@@ -106,12 +134,14 @@ def _ear_clip_triangulate(poly: list[tuple[float, float]]) -> list[tuple[int, in
                 found = True
                 break
         if not found:
-            triangles += [(ring[0], ring[i], ring[i+1]) for i in range(1, len(ring)-1)]
-            return triangles
+            raw = [(ring[0], ring[i], ring[i+1]) for i in range(1, len(ring)-1)]
+            return [(fwd[a], fwd[b], fwd[c]) for a, b, c in raw]
         attempts += 1
     if len(ring) == 3:
         triangles.append((ring[0], ring[1], ring[2]))
-    return triangles
+
+    # Map reversed indices back to original vertex ordering
+    return [(fwd[a], fwd[b], fwd[c]) for a, b, c in triangles]
 
 
 def _build_tile_mesh(tile: dict[str, Any]) -> tuple[
@@ -241,31 +271,31 @@ def render_panel(
     meshes = []
     for idx, tile in enumerate(tiles):
         xs, ys, zs, i_f, j_f, k_f = _build_tile_mesh(tile)
-        n_verts = len(tile["vertices"])
-        
-        # Define colors
-        main_colour = _height_colour(tile["height"], min_h, max_h, idx)
-        bottom_colour = "#2c2c44"  # A darker, consistent base color for the bottom
 
-        # Create a vertex color list: 
-        # First n_verts (bottom) get bottom_colour, next n_verts (top) get main_colour
-        v_colors = [bottom_colour] * n_verts + [main_colour] * n_verts
+        # A single uniform colour per tile avoids the per-triangle shading
+        # artefact that appears when vertexcolor + flatshading are combined.
+        # flatshading=True shades each triangle by its own face normal; with
+        # vertexcolor Plotly can produce visibly different shades for each
+        # triangle of the (mathematically flat) top face, making it look as
+        # though the top has multiple different slants.  Using a single color
+        # string lets Plotly shade the mesh with smooth lighting instead,
+        # so the flat top reads as one continuous surface.
+        main_colour = _height_colour(tile["height"], min_h, max_h, idx)
 
         mesh = go.Mesh3d(
             x=xs, y=ys, z=zs,
             i=i_f, j=j_f, k=k_f,
-            # Use vertexcolor to ensure bottom and top faces are distinct
-            vertexcolor=v_colors,
-            opacity=1.0, # Solid looks better for architectural panels
-            flatshading=True,
-            # Adding 'lighting' properties to help define the edges
+            color=main_colour,
+            opacity=1.0,
+            flatshading=False,   # smooth lighting keeps the flat top looking flat
             lighting=dict(
-                ambient=0.5,
-                diffuse=0.8,
-                specular=0.5,
-                roughness=0.3
+                ambient=0.4,
+                diffuse=0.9,
+                specular=0.3,
+                roughness=0.5,
+                fresnel=0.1,
             ),
-            lightposition=dict(x=canvas_w*0.5, y=-canvas_h, z=max_h*10),
+            lightposition=dict(x=canvas_w * 0.5, y=-canvas_h, z=max_h * 10),
             showscale=False,
             hovertemplate=(
                 f"Height: {tile['height']:.1f}<br>"
