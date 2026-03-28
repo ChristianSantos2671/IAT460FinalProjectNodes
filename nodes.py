@@ -219,12 +219,14 @@ class AperiodicExportSTL:
 
         # 2. Generate each Tile Prism
         for tile in tiles:
-            xs, ys, zs, i_f, j_f, k_f = render_panel._build_tile_mesh(tile, 0.0)
+            xs, ys, zs, top_i, top_j, top_k, side_i, side_j, side_k, _ = \
+                render_panel._build_tile_mesh(tile, 0.0)
             
             # Apply scaling to the tile vertices
             vertices = np.column_stack([xs, ys, zs]) * scale
             
-            for i, j, k in zip(i_f, j_f, k_f):
+            # Combine top and side faces for STL export
+            for i, j, k in zip(top_i + side_i, top_j + side_j, top_k + side_k):
                 all_facets.append([vertices[i], vertices[j], vertices[k]])
 
         # 3. Create the STL Mesh

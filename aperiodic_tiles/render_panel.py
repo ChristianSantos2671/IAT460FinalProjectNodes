@@ -54,7 +54,17 @@ def _top_vertex(
 
 
 def _signed_area(poly: list[tuple[float, float]]) -> float:
-    """Signed area via the shoelace formula. Positive = CCW, negative = CW."""
+    """
+    Signed area via the shoelace formula.
+
+    In standard math coordinates (Y-up):
+        Positive → CCW winding,  Negative → CW winding.
+
+    In screen/canvas coordinates (Y-down, as used here):
+        The Y axis is flipped, so the sign is reversed:
+        Positive → CW  winding (as seen from above in 3-D, i.e. +Z looking down),
+        Negative → CCW winding (as seen from above in 3-D).
+    """
     n = len(poly)
     area = 0.0
     for i in range(n):
@@ -64,34 +74,62 @@ def _signed_area(poly: list[tuple[float, float]]) -> float:
     return area * 0.5
 
 
-def _ear_clip_triangulate(poly: list[tuple[float, float]]) -> list[tuple[int, int, int]]:
+def _ear_clip_triangulate(
+    poly: list[tuple[float, float]],
+    ccw_from_above: bool = True,
+) -> list[tuple[int, int, int]]:
     """
     Ear-clipping triangulation for a simple (non-self-intersecting) polygon.
-    Returns a list of (i, j, k) index triples.
 
-    The algorithm assumes CCW winding (positive signed area).  If the input
-    polygon is CW (negative signed area, common in screen-space coords where
-    Y increases downward), the vertex order is reversed internally so that
-    reflex-vertex detection works correctly on concave hat tiles.
+    Parameters
+    ----------
+    poly : list of (x, y)
+        Polygon vertices in screen-space (Y-down) coordinates.
+    ccw_from_above : bool
+        If True  (default), returned triangle windings are CCW as seen from
+        above (+Z), so their face normals point upward (+Z).
+        If False, windings are CW from above (normals point downward, −Z).
+
+    Returns
+    -------
+    list of (i, j, k) index triples into the original `poly` list.
+
+    Implementation notes
+    --------------------
+    In screen-space Y-down, the shoelace formula gives *positive* area for
+    polygons wound CW on screen, which equals CCW from +Z in 3-D.
+    The ear-clip cross-product (cross2d) is also sign-flipped relative to
+    math-space: a positive cross2d means the turn is CW on screen = CCW
+    from +Z, which is the "convex" direction for a CW-on-screen polygon.
+
+    The algorithm therefore works in screen-space directly:
+      • It expects the input ring to be CW on screen (= CCW from +Z, area > 0).
+      • If the polygon is CCW on screen (area < 0), we reverse it, run the
+        algorithm, and un-reverse the output indices.
+      • All returned triangles are wound CW on screen = CCW from +Z (upward
+        normal).  Pass ccw_from_above=False to flip them.
     """
     n = len(poly)
     if n < 3:
         return []
 
-    # Ensure CCW winding so the ear-clip cross-product test is correct.
-    # A CW polygon (negative signed area, common in screen-space where Y is
-    # downward) has its reflex vertices misidentified if we don't flip first.
-    # We reverse the vertex list, triangulate, then map indices back to the
-    # original ordering so callers always get indices into their own list.
-    if _signed_area(poly) < 0:
-        poly = poly[::-1]
-        # fwd[new_index] = original_index
-        fwd = [n - 1 - k for k in range(n)]
+    area = _signed_area(poly)
+
+    # Work on a copy that is guaranteed to be CW-on-screen (area > 0 = CCW-from-above).
+    # If already CW-on-screen keep as is; if CCW-on-screen reverse so the
+    # ear-clip convexity test (positive cross2d) works correctly.
+    if area < 0:
+        # CCW on screen → reverse to make CW on screen
+        work = poly[::-1]
+        # orig_idx[new_index] = original index
+        orig_idx = list(range(n - 1, -1, -1))
     else:
-        fwd = list(range(n))
+        work = list(poly)
+        orig_idx = list(range(n))
 
     def cross2d(o, a, b):
-        return (a[0]-o[0])*(b[1]-o[1]) - (a[1]-o[1])*(b[0]-o[0])
+        """2-D cross product; positive = CW turn on screen = convex for a CW-on-screen poly."""
+        return (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0])
 
     def point_in_triangle(p, a, b, c):
         d1 = cross2d(p, a, b)
@@ -105,108 +143,128 @@ def _ear_clip_triangulate(poly: list[tuple[float, float]]) -> list[tuple[int, in
         prev_i = ring[(idx - 1) % len(ring)]
         curr_i = ring[idx]
         next_i = ring[(idx + 1) % len(ring)]
-        a, b, c = poly[prev_i], poly[curr_i], poly[next_i]
+        a, b, c = work[prev_i], work[curr_i], work[next_i]
+        # Must be a convex (positive cross2d) vertex for a CW-on-screen poly
         if cross2d(a, b, c) <= 0:
             return False
-        for k, vi in enumerate(ring):
+        for vi in ring:
             if vi in (prev_i, curr_i, next_i):
                 continue
-            if point_in_triangle(poly[vi], a, b, c):
+            if point_in_triangle(work[vi], a, b, c):
                 return False
         return True
 
     ring = list(range(n))
-    triangles = []
+    triangles_work = []   # indices into `work`
+
     attempts = 0
     while len(ring) > 3:
         if attempts > len(ring) ** 2:
-            # fallback: fan triangulation
-            raw = [(ring[0], ring[i], ring[i+1]) for i in range(1, len(ring)-1)]
-            return [(fwd[a], fwd[b], fwd[c]) for a, b, c in raw]
+            # Fallback: fan from ring[0]
+            triangles_work += [(ring[0], ring[i], ring[i + 1])
+                               for i in range(1, len(ring) - 1)]
+            ring = []
+            break
         found = False
         for i in range(len(ring)):
             if is_ear(i, ring):
-                prev_i = ring[(i-1) % len(ring)]
+                prev_i = ring[(i - 1) % len(ring)]
                 curr_i = ring[i]
-                next_i = ring[(i+1) % len(ring)]
-                triangles.append((prev_i, curr_i, next_i))
+                next_i = ring[(i + 1) % len(ring)]
+                triangles_work.append((prev_i, curr_i, next_i))
                 ring.pop(i)
                 found = True
                 break
         if not found:
-            raw = [(ring[0], ring[i], ring[i+1]) for i in range(1, len(ring)-1)]
-            return [(fwd[a], fwd[b], fwd[c]) for a, b, c in raw]
+            # Fallback: fan from ring[0]
+            triangles_work += [(ring[0], ring[i], ring[i + 1])
+                               for i in range(1, len(ring) - 1)]
+            break
         attempts += 1
+
     if len(ring) == 3:
-        triangles.append((ring[0], ring[1], ring[2]))
+        triangles_work.append((ring[0], ring[1], ring[2]))
 
-    # Map reversed indices back to original vertex ordering
-    return [(fwd[a], fwd[b], fwd[c]) for a, b, c in triangles]
+    # Map indices from the working (possibly reversed) polygon back to the
+    # original vertex ordering.  The working triangles are CW-on-screen
+    # (= CCW-from-above, outward normal +Z).
+    result = [(orig_idx[a], orig_idx[b], orig_idx[c])
+              for a, b, c in triangles_work]
+
+    # If caller needs CW-from-above (outward normal −Z), flip each triangle.
+    if not ccw_from_above:
+        result = [(a, c, b) for a, b, c in result]
+
+    return result
 
 
-def _build_tile_mesh(tile: dict[str, Any]) -> tuple[
+def _build_tile_mesh(tile: dict[str, Any], z_floor: float = 0.0) -> tuple[
     list[float], list[float], list[float],
     list[int], list[int], list[int],
+    list[int], list[int], list[int],
+    int,
 ]:
     """
     Build the 3-D mesh (vertices + triangle faces) for one extruded hat tile.
-    Ensures the tile sits at or above z=0 regardless of tilt.
-    Returns (xs, ys, zs, i_f, j_f, k_f) for go.Mesh3d or STL export.
+    Ensures the tile sits at or above z=z_floor regardless of tilt.
+
+    Returns
+    -------
+    xs, ys, zs : vertex coordinate lists
+    top_i, top_j, top_k : face index lists for the top face only
+    side_i, side_j, side_k : face index lists for the side walls only
+    n_top_tris : number of triangles in the top face
     """
     verts2d = [(v[0], v[1]) for v in tile["vertices"]]
     n = len(verts2d)
     height = tile["height"]
     slant = tile["slant"]
 
-    # Calculate centroid for the tilt plane equation
+    # Centroid for the tilt plane equation
     cx = sum(v[0] for v in verts2d) / n
     cy = sum(v[1] for v in verts2d) / n
 
-    # --- STEP 1: PRE-CALCULATE TILT TO PREVENT DOWNWARD EXTRUSION ---
-    # We find the 'lowest' point of the tilted top face
-    raw_top_zs = []
-    for bx, by in verts2d:
-        _, _, tz = _top_vertex(bx, by, height, slant, cx, cy)
-        raw_top_zs.append(tz)
-    
-    # If the lowest point of the top is below 0, we shift the whole tile up
+    # Pre-calculate tilt to prevent any top vertex falling below z_floor
+    raw_top_zs = [_top_vertex(bx, by, height, slant, cx, cy)[2]
+                  for bx, by in verts2d]
     min_tz = min(raw_top_zs)
-    z_offset = abs(min_tz) if min_tz < 0 else 0 
+    z_offset = (z_floor - min_tz) if min_tz < z_floor else 0.0
 
     xs, ys, zs = [], [], []
 
-    # --- STEP 2: GENERATE VERTICES ---
-    # Bottom ring (z=0): indices 0..n-1
+    # Bottom ring: indices 0..n-1
     for bx, by in verts2d:
-        xs.append(bx); ys.append(by); zs.append(0.0)
+        xs.append(bx); ys.append(by); zs.append(z_floor)
 
-    # Top ring (z varies + offset): indices n..2n-1
-    for i, (bx, by) in enumerate(verts2d):
+    # Top ring: indices n..2n-1
+    for bx, by in verts2d:
         tx, ty, tz = _top_vertex(bx, by, height, slant, cx, cy)
         xs.append(tx); ys.append(ty); zs.append(tz + z_offset)
 
-    # --- STEP 3: GENERATE FACES (TRIANGULATION) ---
-    i_f, j_f, k_f = [], [], []
+    # Winding sense as seen from +Z (needed for correct side-wall outward normals)
+    poly_area = _signed_area(verts2d)
+    ccw_from_above = (poly_area > 0)   # positive shoelace area = CCW from +Z
 
-    # Bottom face (Looking 'up' from below, so we reverse winding)
-    for a, b, c in _ear_clip_triangulate(verts2d):
-        i_f.append(a); j_f.append(c); k_f.append(b)
+    # ── Top face ──────────────────────────────────────────────────────────
+    top_2d = [(xs[n + i], ys[n + i]) for i in range(n)]
+    top_i, top_j, top_k = [], [], []
+    for a, b, c in _ear_clip_triangulate(top_2d, ccw_from_above=True):
+        top_i.append(n + a); top_j.append(n + b); top_k.append(n + c)
 
-    # Top face
-    top_2d = [(xs[n+i], ys[n+i]) for i in range(n)]
-    for a, b, c in _ear_clip_triangulate(top_2d):
-        i_f.append(n+a); j_f.append(n+b); k_f.append(n+c)
-
-    # Side walls (Quads split into two triangles)
+    # ── Side walls ────────────────────────────────────────────────────────
+    side_i, side_j, side_k = [], [], []
     for idx in range(n):
         nxt = (idx + 1) % n
-        bl, br, tl, tr = idx, nxt, n+idx, n+nxt
-        # Triangle 1
-        i_f.append(bl); j_f.append(br); k_f.append(tl)
-        # Triangle 2
-        i_f.append(br); j_f.append(tr); k_f.append(tl)
+        bl, br = idx, nxt
+        tl, tr = n + idx, n + nxt
+        if ccw_from_above:
+            side_i.append(bl); side_j.append(br); side_k.append(tr)
+            side_i.append(bl); side_j.append(tr); side_k.append(tl)
+        else:
+            side_i.append(bl); side_j.append(tl); side_k.append(tr)
+            side_i.append(bl); side_j.append(tr); side_k.append(br)
 
-    return xs, ys, zs, i_f, j_f, k_f
+    return xs, ys, zs, top_i, top_j, top_k, side_i, side_j, side_k, len(top_i)
 
 
 # ---------------------------------------------------------------------------
@@ -214,24 +272,69 @@ def _build_tile_mesh(tile: dict[str, Any]) -> tuple[
 # ---------------------------------------------------------------------------
 
 def _height_colour(height: float, min_h: float, max_h: float, idx: int) -> str:
-    # 1. Clamp t between 0 and 1 to prevent negative colors
+    """Return a hex colour string for the given tile height."""
     t = max(0.0, min(1.0, (height - min_h) / max(max_h - min_h, 1e-9)))
-    
     if idx % 2 == 0:
-        # Blue palette
         r = int(13  + (227 - 13)  * (1 - t))
         g = int(71  + (242 - 71)  * (1 - t))
         b = int(161 + (253 - 161) * (1 - t))
     else:
-        # Orange palette
         r = int(191 + (255 - 191) * (1 - t))
         g = int(54  + (243 - 54)  * (1 - t))
         b = int(12  + (224 - 12)  * (1 - t))
-    
-    # 2. Final safety clamp before hex conversion
-    r, g, b = [max(0, min(255, val)) for val in (r, g, b)]
-    
+    r, g, b = [max(0, min(255, v)) for v in (r, g, b)]
     return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def _hex_to_rgb(h: str) -> tuple[int, int, int]:
+    h = h.lstrip("#")
+    return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+
+
+def _shade_colour(hex_colour: str, brightness: float) -> str:
+    """
+    Scale an RGB hex colour by a brightness factor (0–1) and return hex.
+    Used to pre-compute the lit colour of the top face so every triangle
+    on that face gets the identical colour value regardless of Plotly's
+    per-triangle normal recomputation.
+    """
+    r, g, b = _hex_to_rgb(hex_colour)
+    r = max(0, min(255, int(r * brightness)))
+    g = max(0, min(255, int(g * brightness)))
+    b = max(0, min(255, int(b * brightness)))
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
+def _top_face_brightness(slant: list[float]) -> float:
+    """
+    Compute the diffuse-lighting brightness of the top face given its slant
+    (surface normal) and the global light direction.
+
+    The light direction matches lightposition=dict(x=1e5, y=-1e5, z=1e5),
+    i.e. L = normalise([1, -1, 1]).
+
+    Returns a brightness in [ambient, ambient + diffuse] to match the
+    lighting parameters used for the side-wall traces.
+    """
+    # Normalise the surface normal (slant may be un-normalised)
+    nx, ny, nz = slant
+    mag = math.sqrt(nx * nx + ny * ny + nz * nz)
+    if mag < 1e-9:
+        nx, ny, nz = 0.0, 0.0, 1.0
+    else:
+        nx, ny, nz = nx / mag, ny / mag, nz / mag
+
+    # Light direction (unit vector toward the light source)
+    lx, ly, lz = 1.0, -1.0, 1.0
+    lmag = math.sqrt(lx * lx + ly * ly + lz * lz)
+    lx, ly, lz = lx / lmag, ly / lmag, lz / lmag
+
+    # Lambertian diffuse: N · L, clamped to [0, 1]
+    n_dot_l = max(0.0, nx * lx + ny * ly + nz * lz)
+
+    ambient = 0.55
+    diffuse = 0.7
+    return ambient + diffuse * n_dot_l
 
 
 # ---------------------------------------------------------------------------
@@ -246,6 +349,18 @@ def render_panel(
 ) -> go.Figure:
     """
     Render the 3-D extruded hat-tile panel using Plotly.
+
+    Each tile is split into two go.Mesh3d traces:
+
+    1. Top face — uses ``facecolor`` (one explicit hex colour per triangle).
+       Every triangle on the top face receives the *same* pre-computed colour,
+       derived from the tile's true surface normal and the scene light direction.
+       This guarantees a uniformly shaded top surface regardless of how Plotly's
+       WebGL engine computes per-triangle normals internally.
+
+    2. Side walls — uses ``flatshading=True`` with Plotly's lighting engine.
+       Each wall quad is two triangles whose normals differ, so they correctly
+       shade as a single angled surface.
 
     Parameters
     ----------
@@ -262,57 +377,60 @@ def render_panel(
     -------
     plotly.graph_objects.Figure
     """
-    tiles     = panel["tiles"]
-    min_h     = panel.get("min_height", 0.0)
-    max_h     = panel.get("max_height", 1.0)
-    canvas_w  = panel["canvas_width"]
-    canvas_h  = panel["canvas_height"]
+    tiles    = panel["tiles"]
+    min_h    = panel.get("min_height", 0.0)
+    max_h    = panel.get("max_height", 1.0)
+
+    # Shared lighting / light-position kwargs for the side-wall traces
+    _lighting     = dict(ambient=0.55, diffuse=0.7, specular=0.15,
+                         roughness=0.8, fresnel=0.05)
+    _lightpos     = dict(x=1e5, y=-1e5, z=1e5)
 
     meshes = []
     for idx, tile in enumerate(tiles):
-        xs, ys, zs, i_f, j_f, k_f = _build_tile_mesh(tile)
+        xs, ys, zs, top_i, top_j, top_k, side_i, side_j, side_k, n_top = \
+            _build_tile_mesh(tile)
 
-        # flatshading=True gives each triangle its own face normal, so every
-        # wall quad shades according to the direction it faces — this is what
-        # makes individual side walls distinguishable from one another and
-        # matches the appearance of the STL in a 3D viewer.
-        # A single color= string (not vertexcolor) is used so that the top
-        # face's ear-clip triangles all receive the same base colour before
-        # lighting is applied; since they are coplanar their face normals are
-        # identical and they shade uniformly even with flatshading=True.
-        main_colour = _height_colour(tile["height"], min_h, max_h, idx)
+        base_colour = _height_colour(tile["height"], min_h, max_h, idx)
 
-        mesh = go.Mesh3d(
+        # ── 1. Top face: facecolor — one identical colour per triangle ────
+        # Pre-compute the lit colour from the true surface normal so all
+        # triangles on this (planar) face are rendered at the same brightness.
+        brightness   = _top_face_brightness(tile["slant"])
+        top_colour   = _shade_colour(base_colour, brightness)
+        top_facecolors = [top_colour] * n_top   # same colour for every tri
+
+        top_mesh = go.Mesh3d(
             x=xs, y=ys, z=zs,
-            i=i_f, j=j_f, k=k_f,
-            color=main_colour,
+            i=top_i, j=top_j, k=top_k,
+            facecolor=top_facecolors,
             opacity=1.0,
-            flatshading=True,
-            lighting=dict(
-                # High ambient prevents walls from going completely black on
-                # the shadow side; moderate diffuse provides clear directional
-                # shading; low specular avoids harsh highlights.
-                ambient=0.55,
-                diffuse=0.7,
-                specular=0.15,
-                roughness=0.8,
-                fresnel=0.05,
-            ),
-            # Key light positioned upper-left in world space (positive X and Y,
-            # well above the scene in Z) so the light arrives from above-front
-            # and the lower halves of vertical walls fall into natural shadow.
-            lightposition=dict(
-                x=canvas_w * 0.3,
-                y=canvas_h * 1.5,
-                z=max_h * 20,
-            ),
+            flatshading=True,       # required when facecolor is set
             showscale=False,
             hovertemplate=(
                 f"Height: {tile['height']:.1f}<br>"
-                f"Tile index: {idx}<extra></extra>"
+                f"Tile index: {idx} (top)<extra></extra>"
             ),
         )
-        meshes.append(mesh)
+        meshes.append(top_mesh)
+
+        # ── 2. Side walls: standard flat-shaded lighting ──────────────────
+        if side_i:
+            side_mesh = go.Mesh3d(
+                x=xs, y=ys, z=zs,
+                i=side_i, j=side_j, k=side_k,
+                color=base_colour,
+                opacity=1.0,
+                flatshading=True,
+                lighting=_lighting,
+                lightposition=_lightpos,
+                showscale=False,
+                hovertemplate=(
+                    f"Height: {tile['height']:.1f}<br>"
+                    f"Tile index: {idx} (side)<extra></extra>"
+                ),
+            )
+            meshes.append(side_mesh)
 
     fig = go.Figure(data=meshes)
 
