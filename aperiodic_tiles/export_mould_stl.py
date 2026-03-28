@@ -219,30 +219,47 @@ def _top_face_with_holes(x0, x1, y0, y1, mould_height, tiles):
         outer_poly = Polygon([(x0, y0), (x1, y0), (x1, y1), (x0, y1)])
         holes = [Polygon([(v[0], v[1]) for v in tile["vertices"]]) for tile in tiles]
         hole_union = unary_union(holes)
+        # face = the mould top surface: rectangle minus all tile footprints
         face = outer_poly.difference(hole_union)
 
-        facets = []
-        for tri in sh_triangulate(face, tolerance=0.0):
-            coords = list(tri.exterior.coords)[:-1]
-            if len(coords) != 3:
-                continue
-            # Only keep triangles whose centroid lies inside the face
-            cx = sum(c[0] for c in coords) / 3
-            cy = sum(c[1] for c in coords) / 3
-            from shapely.geometry import Point
-            if not face.contains(Point(cx, cy)):
-                continue
+        def _emit_triangle(coords, facets_list):
+            """Append one triangle (3 coords) with normal +Z to facets_list."""
             v0 = [coords[0][0], coords[0][1], D]
             v1 = [coords[1][0], coords[1][1], D]
             v2 = [coords[2][0], coords[2][1], D]
-            # Ensure normal points +Z (CCW from above in 3-D = CW on screen)
             ax, ay = coords[1][0]-coords[0][0], coords[1][1]-coords[0][1]
             bx2, by2 = coords[2][0]-coords[0][0], coords[2][1]-coords[0][1]
             cross_z = ax * by2 - ay * bx2
             if cross_z > 0:
-                facets.append([v0, v1, v2])
+                facets_list.append([v0, v1, v2])
             else:
-                facets.append([v0, v2, v1])
+                facets_list.append([v0, v2, v1])
+
+        facets = []
+        # sh_triangulate returns Delaunay triangles covering the convex hull of
+        # all vertices.  We intersect each triangle with `face` to clip it
+        # exactly to the mould-top surface (rectangle minus tile holes).
+        for tri in sh_triangulate(face, tolerance=0.0):
+            clipped = face.intersection(tri)
+            if clipped.is_empty:
+                continue
+            geoms = (
+                list(clipped.geoms)
+                if hasattr(clipped, "geoms")
+                else [clipped]
+            )
+            for g in geoms:
+                g_type = g.geom_type
+                if g_type == "Polygon":
+                    coords = list(g.exterior.coords)[:-1]
+                    if len(coords) == 3:
+                        _emit_triangle(coords, facets)
+                    elif len(coords) > 3:
+                        # Sub-triangulate via fan
+                        for i in range(1, len(coords) - 1):
+                            _emit_triangle(
+                                [coords[0], coords[i], coords[i + 1]], facets
+                            )
         return facets
 
     except ImportError:
