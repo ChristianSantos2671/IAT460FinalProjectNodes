@@ -17,7 +17,8 @@ from .nodes import (
     AperiodicAssignHeights,
     AperiodicRenderCanvas,
     AperiodicRenderPanel,
-    AperiodicExportSTL
+    AperiodicExportSTL,
+    AperiodicExportMouldSTL,
 )
 
 NODE_CLASS_MAPPINGS = {
@@ -26,7 +27,8 @@ NODE_CLASS_MAPPINGS = {
     "AperiodicAssignHeights": AperiodicAssignHeights,
     "AperiodicRenderCanvas": AperiodicRenderCanvas,
     "AperiodicRenderPanel": AperiodicRenderPanel,
-    "AperiodicExportSTL": AperiodicExportSTL
+    "AperiodicExportSTL": AperiodicExportSTL,
+    "AperiodicExportMouldSTL": AperiodicExportMouldSTL,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -35,7 +37,8 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "AperiodicAssignHeights": "Assign Tile Heights & Tilt",
     "AperiodicRenderCanvas": "Render 2D Canvas (HTML)",
     "AperiodicRenderPanel": "Render 3D Panel (HTML)",
-    "AperiodicExportSTL": "Export 3D Panel (STL)"
+    "AperiodicExportSTL": "Export 3D Panel (STL)",
+    "AperiodicExportMouldSTL": "Export Casting Mould (STL)",
 }
 
 __all__ = ["NODE_CLASS_MAPPINGS", "NODE_DISPLAY_NAME_MAPPINGS"]
