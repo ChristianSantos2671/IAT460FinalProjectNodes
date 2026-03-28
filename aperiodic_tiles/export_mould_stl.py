@@ -322,6 +322,61 @@ def _top_face_with_holes(x0, x1, y0, y1, mould_height, tiles):
     return facets
 
 
+def _collar_walls(x0, x1, y0, y1, mould_height, base_thickness, wall_thickness):
+    """
+    Solid raised "dam collar" walls that extend above the mould top face from
+    z = mould_height to z = mould_height + base_thickness.
+
+    The collar is a rectangular frame with a physical wall thickness equal to
+    wall_thickness (same as the main mould walls).  Its outer XY footprint
+    matches the main mould walls exactly.  The inner edge is inset by
+    wall_thickness on all four sides.  The collar is open at the top so liquid
+    can be poured in.
+
+    Surfaces generated:
+        - 4 outer vertical faces  (normals outward)
+        - 4 inner vertical faces  (normals inward, facing the liquid)
+        - 4 flat top-cap faces    (normals upward, closing the wall thickness)
+    """
+    z_bot = mould_height
+    z_top = mould_height + base_thickness
+    wt = wall_thickness
+
+    # Outer corners (same footprint as the main mould box)
+    ox = [x0, x1, x1, x0]
+    oy = [y0, y0, y1, y1]
+
+    # Inner corners (inset by wall_thickness)
+    ix = [x0 + wt, x1 - wt, x1 - wt, x0 + wt]
+    iy = [y0 + wt, y0 + wt, y1 - wt, y1 - wt]
+
+    facets = []
+
+    for i in range(4):
+        j = (i + 1) % 4
+
+        # ── Outer face (normal points outward) ──────────────────────────
+        ob0 = [ox[i], oy[i], z_bot]
+        ob1 = [ox[j], oy[j], z_bot]
+        ot0 = [ox[i], oy[i], z_top]
+        ot1 = [ox[j], oy[j], z_top]
+        facets += [[ob0, ob1, ot1], [ob0, ot1, ot0]]
+
+        # ── Inner face (normal points inward toward poured liquid) ───────
+        ib0 = [ix[i], iy[i], z_bot]
+        ib1 = [ix[j], iy[j], z_bot]
+        it0 = [ix[i], iy[i], z_top]
+        it1 = [ix[j], iy[j], z_top]
+        # Reverse winding so normal faces inward
+        facets += [[ib0, it1, ib1], [ib0, it0, it1]]
+
+        # ── Top cap (flat horizontal, normal upward +Z) ──────────────────
+        # Quad connecting outer top edge to inner top edge
+        facets += [[ot0, ot1, it1], [ot0, it1, it0]]
+
+    return facets
+
+
 def _cavity_facets(tile, mould_height, wall_thickness, global_max_col_top_z):
     """
     Build the interior surface of one tile cavity.
@@ -392,6 +447,7 @@ def export_mould_stl(
     out_path: str,
     wall_thickness: float = 10.0,
     base_margin: float = 5.0,
+    base_thickness: float = 10.0,
     scale: float = 1.0,
 ) -> str:
     """
@@ -412,6 +468,12 @@ def export_mould_stl(
         Extra margin (mm, pre-scale) added around the tile bounding box
         before the wall_thickness is applied.  Matches the base_margin
         used in export_stl.py.
+    base_thickness : float
+        Height (mm) of the raised "dam collar" walls that extend above the
+        mould top face.  After filling the cavities, extra liquid is poured
+        up to this height above the tile holes to form the connecting base
+        plate of the finished cast.  When the cast is flipped right-side-up
+        this layer becomes the flat base that joins all the columns together.
     scale : float
         Uniform scale factor applied to every coordinate before export.
 
@@ -473,6 +535,12 @@ def export_mould_stl(
     # Per-tile cavity interiors (side walls + tilted floor)
     for tile in tiles:
         all_facets.extend(_cavity_facets(tile, mould_height, wall_thickness, global_max_col_top_z))
+
+    # Raised dam collar (z = mould_height .. mould_height + base_thickness):
+    # four short outer walls that contain the extra liquid poured above the
+    # tile holes to form the connecting base plate of the finished cast.
+    if base_thickness > 0:
+        all_facets.extend(_collar_walls(x0, x1, y0, y1, mould_height, base_thickness, wall_thickness))
 
     # ── Step 4: scale and save ────────────────────────────────────────────
     n = len(all_facets)

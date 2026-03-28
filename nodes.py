@@ -215,6 +215,12 @@ class AperiodicExportMouldSTL:
     base_margin : float
         Extra gap (mm) between the tile footprint and the inner face of the
         mould walls (matches the base_margin used in the panel STL export).
+    base_thickness : float
+        Height (mm) of the short raised "dam collar" walls that extend above
+        the mould top face.  Pour extra liquid to this depth above the tile
+        holes to form the connecting base plate of the finished cast.  When
+        flipped right-side-up, this layer becomes the flat base joining all
+        columns together.  Set to 0 to omit the collar.
     scale : float
         Uniform scale applied to every coordinate before export.
     """
@@ -227,6 +233,7 @@ class AperiodicExportMouldSTL:
                 "filename": ("STRING", {"default": "aperiodic_mould.stl"}),
                 "wall_thickness": ("FLOAT", {"default": 10.0, "min": 1.0, "max": 100.0, "step": 0.1}),
                 "base_margin": ("FLOAT", {"default": 5.0, "min": 0.0, "max": 100.0, "step": 0.5}),
+                "base_thickness": ("FLOAT", {"default": 10.0, "min": 0.0, "max": 100.0, "step": 0.1}),
                 "scale": ("FLOAT", {"default": 1.0, "min": 0.001, "max": 100.0, "step": 0.001}),
             }
         }
@@ -236,7 +243,7 @@ class AperiodicExportMouldSTL:
     CATEGORY = CAT
     OUTPUT_NODE = True
 
-    def execute(self, tile_height_data, filename, wall_thickness, base_margin, scale):
+    def execute(self, tile_height_data, filename, wall_thickness, base_margin, base_thickness, scale):
         if not filename.lower().endswith(".stl"):
             filename += ".stl"
         out_path = os.path.join(folder_paths.get_output_directory(), filename)
@@ -246,6 +253,7 @@ class AperiodicExportMouldSTL:
                 out_path=out_path,
                 wall_thickness=wall_thickness,
                 base_margin=base_margin,
+                base_thickness=base_thickness,
                 scale=scale,
             )
             return {"ui": {"text": [f"Mould saved to: {saved} (scale={scale})"]}, "result": (saved,)}
