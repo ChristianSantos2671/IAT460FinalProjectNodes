@@ -1,4 +1,4 @@
-# ComfyUI-AperiodicTiles
+# ComfyUI Aperiodic Soundproofing Panel Generator Nodes
 
 ## Overview
 
