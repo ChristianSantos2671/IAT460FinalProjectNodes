@@ -130,7 +130,7 @@ class AperiodicRenderCanvas:
                 "tile_polygons": ("TILE_POLYGONS",),
             }
         }
-    RETURN_TYPES = ("HTML_PATH",)
+    RETURN_TYPES = ()
     FUNCTION = "execute"
     CATEGORY = CAT
     OUTPUT_NODE = True
@@ -138,7 +138,7 @@ class AperiodicRenderCanvas:
     def execute(self, tile_polygons):
         out_path = os.path.join(folder_paths.get_output_directory(), "aperiodic_canvas.html")
         render_canvas.render_canvas(canvas=tile_polygons, show=False, save_path=out_path)
-        return {"ui": {"text": [out_path]}, "result": (out_path,)}
+        return {"ui": {"text": [out_path]}}
 
 
 class AperiodicRenderPanel:
@@ -157,7 +157,7 @@ class AperiodicRenderPanel:
                                            "tooltip": "Hex colour applied to all three axis grid planes (X, Y and Z backgrounds)."}),
             }
         }
-    RETURN_TYPES = ("HTML_PATH",)
+    RETURN_TYPES = ()
     FUNCTION = "execute"
     CATEGORY = CAT
     OUTPUT_NODE = True
@@ -173,7 +173,7 @@ class AperiodicRenderPanel:
             bg_colour=bg_colour,
             grid_colour=grid_colour,
         )
-        return {"ui": {"text": [out_path]}, "result": (out_path,)}
+        return {"ui": {"text": [out_path]}}
 
 
 class AperiodicExportSTL:
@@ -189,7 +189,7 @@ class AperiodicExportSTL:
             }
         }
 
-    RETURN_TYPES = ("STRING",)
+    RETURN_TYPES = ()
     FUNCTION = "execute"
     CATEGORY = CAT
     OUTPUT_NODE = True
@@ -206,9 +206,9 @@ class AperiodicExportSTL:
                 base_margin=base_margin,
                 scale=scale,
             )
-            return {"ui": {"text": [f"Saved to: {saved} (scale={scale})"]}, "result": (saved,)}
+            return {"ui": {"text": [f"Saved to: {saved} (scale={scale})"]}}
         except Exception as exc:
-            return {"ui": {"text": [f"Error: {exc}"]}, "result": ("",)}
+            return {"ui": {"text": [f"Error: {exc}"]}}
 
 
 class AperiodicExportMouldSTL:
@@ -253,7 +253,7 @@ class AperiodicExportMouldSTL:
             }
         }
 
-    RETURN_TYPES = ("STRING",)
+    RETURN_TYPES = ()
     FUNCTION = "execute"
     CATEGORY = CAT
     OUTPUT_NODE = True
@@ -271,9 +271,9 @@ class AperiodicExportMouldSTL:
                 base_thickness=base_thickness,
                 scale=scale,
             )
-            return {"ui": {"text": [f"Mould saved to: {saved} (scale={scale})"]}, "result": (saved,)}
+            return {"ui": {"text": [f"Mould saved to: {saved} (scale={scale})"]}}
         except Exception as exc:
-            return {"ui": {"text": [f"Error: {exc}"]}, "result": ("",)}
+            return {"ui": {"text": [f"Error: {exc}"]}}
 
 
 # Mapping for ComfyUI to recognise the nodes

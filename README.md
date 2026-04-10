@@ -106,7 +106,7 @@ Adds a scalar extrusion height and a surface-tilt normal to every tile, driven b
 
 **Category:** Aperiodic Tiles  
 **Input:** `TILE_POLYGONS`  
-**Output:** `HTML_PATH` (also an output node — saves file)
+**Output:** *(none — output node only; saves file)*
 
 Renders the flat 2-D tile layout as an interactive Plotly HTML file saved to the ComfyUI output directory (`aperiodic_canvas.html`).
 
@@ -114,7 +114,7 @@ Renders the flat 2-D tile layout as an interactive Plotly HTML file saved to the
 
 **Category:** Aperiodic Tiles  
 **Input:** `TILE_HEIGHT_DATA`  
-**Output:** `HTML_PATH` (also an output node — saves file)
+**Output:** *(none — output node only; saves file)*
 
 Renders the extruded 3-D panel as an interactive Plotly HTML file (`aperiodic_panel_3d.html`). The viewer is fully rotatable, zoomable, and pannable in any browser.
 
@@ -138,7 +138,7 @@ All four colour parameters accept a standard CSS hex colour string (e.g. `#ff660
 
 **Category:** Aperiodic Tiles  
 **Input:** `TILE_HEIGHT_DATA`  
-**Output:** `STRING` (file path; also an output node — saves file)
+**Output:** *(none — output node only; saves file)*
 
 Exports the column panel as a binary STL file. The solid consists of a flat rectangular base-plate plus one tilted prism per tile.
 
@@ -153,7 +153,7 @@ Exports the column panel as a binary STL file. The solid consists of a flat rect
 
 **Category:** Aperiodic Tiles  
 **Input:** `TILE_HEIGHT_DATA`  
-**Output:** `STRING` (file path; also an output node — saves file)
+**Output:** *(none — output node only; saves file)*
 
 Exports a casting mould as a binary STL file. The mould is a solid rectangular block with one cavity per tile column. Each cavity exactly replicates the shape of the corresponding column (including the tilted top surface).
 
