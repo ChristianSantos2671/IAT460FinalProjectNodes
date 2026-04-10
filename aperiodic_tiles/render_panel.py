@@ -271,24 +271,46 @@ def _build_tile_mesh(tile: dict[str, Any], z_floor: float = 0.0) -> tuple[
 # Colour helpers
 # ---------------------------------------------------------------------------
 
-def _height_colour(height: float, min_h: float, max_h: float, idx: int) -> str:
-    """Return a hex colour string for the given tile height."""
-    t = max(0.0, min(1.0, (height - min_h) / max(max_h - min_h, 1e-9)))
-    if idx % 2 == 0:
-        r = int(13  + (227 - 13)  * (1 - t))
-        g = int(71  + (242 - 71)  * (1 - t))
-        b = int(161 + (253 - 161) * (1 - t))
-    else:
-        r = int(191 + (255 - 191) * (1 - t))
-        g = int(54  + (243 - 54)  * (1 - t))
-        b = int(12  + (224 - 12)  * (1 - t))
-    r, g, b = [max(0, min(255, v)) for v in (r, g, b)]
-    return f"#{r:02x}{g:02x}{b:02x}"
-
-
 def _hex_to_rgb(h: str) -> tuple[int, int, int]:
     h = h.lstrip("#")
     return int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+
+
+# Default tile colours (dark end of the gradient)
+_DEFAULT_COLOUR_A = "#0d47a1"   # deep blue   (even tiles)
+_DEFAULT_COLOUR_B = "#bf360c"   # deep orange (odd tiles)
+_DEFAULT_BG_COLOUR   = "#1a1a2e"  # dark-navy page background
+_DEFAULT_GRID_COLOUR = "#e8e8f0"  # light blue-grey grid planes
+
+
+def _height_colour(
+    height: float,
+    min_h: float,
+    max_h: float,
+    idx: int,
+    colour_a: str = _DEFAULT_COLOUR_A,
+    colour_b: str = _DEFAULT_COLOUR_B,
+) -> str:
+    """
+    Return a hex colour string for the given tile height.
+
+    Tiles with even *idx* interpolate from a light tint of *colour_a* (short)
+    to *colour_a* itself (tall).  Odd tiles do the same with *colour_b*.
+    The light tint is produced by blending the chosen colour 30 % toward white.
+    """
+    t = max(0.0, min(1.0, (height - min_h) / max(max_h - min_h, 1e-9)))
+    base = colour_a if idx % 2 == 0 else colour_b
+    br, bg, bb = _hex_to_rgb(base)
+    # Light end: blend 70 % white + 30 % base colour
+    lr = int(br * 0.30 + 255 * 0.70)
+    lg = int(bg * 0.30 + 255 * 0.70)
+    lb = int(bb * 0.30 + 255 * 0.70)
+    # Interpolate: t=0 → light end, t=1 → dark (base) colour
+    r = int(lr + (br - lr) * t)
+    g = int(lg + (bg - lg) * t)
+    b = int(lb + (bb - lb) * t)
+    r, g, b = [max(0, min(255, v)) for v in (r, g, b)]
+    return f"#{r:02x}{g:02x}{b:02x}"
 
 
 def _shade_colour(hex_colour: str, brightness: float) -> str:
@@ -346,6 +368,10 @@ def render_panel(
     title: str = "Aperiodic Hat Tiling — 3-D Panel",
     show: bool = True,
     save_html: str | None = None,
+    colour_a: str = _DEFAULT_COLOUR_A,
+    colour_b: str = _DEFAULT_COLOUR_B,
+    bg_colour: str = _DEFAULT_BG_COLOUR,
+    grid_colour: str = _DEFAULT_GRID_COLOUR,
 ) -> go.Figure:
     """
     Render the 3-D extruded hat-tile panel using Plotly.
@@ -372,6 +398,15 @@ def render_panel(
         If True (default), open the figure in a browser window.
     save_html : str or None, optional
         If given, save the interactive HTML to this file path.
+    colour_a : str, optional
+        Hex colour (e.g. ``"#0d47a1"``) used for even-indexed tile columns.
+        Short tiles receive a light tint; tall tiles receive the full colour.
+    colour_b : str, optional
+        Hex colour used for odd-indexed tile columns.
+    bg_colour : str, optional
+        Hex colour for the page/environment background (outside the 3-D scene).
+    grid_colour : str, optional
+        Hex colour applied to all three axis grid planes (X, Y, Z backgrounds).
 
     Returns
     -------
@@ -391,7 +426,8 @@ def render_panel(
         xs, ys, zs, top_i, top_j, top_k, side_i, side_j, side_k, n_top = \
             _build_tile_mesh(tile)
 
-        base_colour = _height_colour(tile["height"], min_h, max_h, idx)
+        base_colour = _height_colour(tile["height"], min_h, max_h, idx,
+                                     colour_a=colour_a, colour_b=colour_b)
 
         # ── 1. Top face: facecolor — one identical colour per triangle ────
         # Pre-compute the lit colour from the true surface normal so all
@@ -444,16 +480,16 @@ def render_panel(
         ),
         scene=dict(
             xaxis=dict(title="X (px)", showbackground=True,
-                       backgroundcolor="#e8e8f0"),
+                       backgroundcolor=grid_colour),
             yaxis=dict(title="Y (px)", showbackground=True,
-                       backgroundcolor="#e8e8f0"),
+                       backgroundcolor=grid_colour),
             zaxis=dict(title="Height", showbackground=True,
-                       backgroundcolor="#d8d8e8"),
+                       backgroundcolor=grid_colour),
             camera=camera,
             aspectmode="data",
         ),
         margin=dict(l=0, r=0, t=60, b=0),
-        paper_bgcolor="#1a1a2e",
+        paper_bgcolor=bg_colour,
         font=dict(color="#e8e8e8"),
     )
 

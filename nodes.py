@@ -7,7 +7,7 @@ Node pipeline (left to right):
 
     AperiodicHatTiling      -- generates raw hat-tile geometry on a hex lattice.
     AperiodicFillCanvas     -- filters and scales tiles to fill a pixel canvas,
-                              returning a canvas dict and bounding-box bounds.
+                              returning a canvas dict.
     AperiodicAssignHeights  -- adds height and surface-tilt data to every tile,
                               producing a panel dict ready for 3-D output.
     AperiodicRenderCanvas   -- renders the 2-D tile layout as an interactive
@@ -74,7 +74,7 @@ class AperiodicFillCanvas:
                 "gap": ("FLOAT", {"default": 5.0, "min": 0.0, "max": 20.0}),
             }
         }
-    RETURN_TYPES = ("TILE_POLYGONS", "RECT_BOUNDS")
+    RETURN_TYPES = ("TILE_POLYGONS",)
     FUNCTION = "execute"
     CATEGORY = CAT
 
@@ -85,8 +85,7 @@ class AperiodicFillCanvas:
             tile_size=hat_data["s"],
             gap=gap
         )
-        bounds = [hat_data["w"], hat_data["h"]]
-        return (canvas_dict, bounds)
+        return (canvas_dict,)
 
 
 class AperiodicAssignHeights:
@@ -148,6 +147,14 @@ class AperiodicRenderPanel:
         return {
             "required": {
                 "tile_height_data": ("TILE_HEIGHT_DATA",),
+                "colour_a":    ("STRING", {"default": "#0d47a1",
+                                           "tooltip": "Hex colour for even-indexed tile columns (e.g. #0d47a1). Tall tiles are this colour; short tiles get a light tint."}),
+                "colour_b":    ("STRING", {"default": "#bf360c",
+                                           "tooltip": "Hex colour for odd-indexed tile columns (e.g. #bf360c)."}),
+                "bg_colour":   ("STRING", {"default": "#1a1a2e",
+                                           "tooltip": "Hex colour for the page / environment background surrounding the 3-D scene."}),
+                "grid_colour": ("STRING", {"default": "#e8e8f0",
+                                           "tooltip": "Hex colour applied to all three axis grid planes (X, Y and Z backgrounds)."}),
             }
         }
     RETURN_TYPES = ("HTML_PATH",)
@@ -155,9 +162,17 @@ class AperiodicRenderPanel:
     CATEGORY = CAT
     OUTPUT_NODE = True
 
-    def execute(self, tile_height_data):
+    def execute(self, tile_height_data, colour_a, colour_b, bg_colour, grid_colour):
         out_path = os.path.join(folder_paths.get_output_directory(), "aperiodic_panel_3d.html")
-        render_panel.render_panel(panel=tile_height_data, show=False, save_html=out_path)
+        render_panel.render_panel(
+            panel=tile_height_data,
+            show=False,
+            save_html=out_path,
+            colour_a=colour_a,
+            colour_b=colour_b,
+            bg_colour=bg_colour,
+            grid_colour=grid_colour,
+        )
         return {"ui": {"text": [out_path]}, "result": (out_path,)}
 
 

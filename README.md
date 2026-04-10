@@ -18,6 +18,7 @@ Starting from a single set of parameters, the pipeline:
 - **Aperiodic hat-tile geometry** — uses a Z3 SAT solver to select a valid, gap-free non-repeating tiling on a hex lattice.
 - **Procedural height mapping** — three modes (`radial_ripple`, `linear_ripple`, `noise`) drive column height and surface tilt.
 - **Interactive 3-D preview** — Plotly-based HTML viewers open in any browser; fully rotatable, zoomable, and pannable.
+- **Customisable 3-D colours** — the two tile column colours, the environment background, and all three grid-plane colours are exposed as node parameters on the Render 3D Panel node.
 - **Column STL export** — watertight solid with a flat base-plate and one tilted prism per tile.
 - **Mould STL export** — solid rectangular block with per-tile cavities exactly matching the column geometry; flip upside down, pour, demould.
 - **Uniform scale control** — all STL exporters accept a `scale` multiplier to convert canvas units to physical millimetres.
@@ -73,7 +74,7 @@ Generates the raw hat-tile geometry on a hex lattice using a Z3 SAT solver.
 
 **Category:** Aperiodic Tiles  
 **Input:** `HAT_DATA`  
-**Outputs:** `TILE_POLYGONS`, `RECT_BOUNDS`
+**Output:** `TILE_POLYGONS`
 
 Filters and scales the raw tiles to fill the canvas, applying an optional gap between tiles.
 
@@ -116,6 +117,22 @@ Renders the flat 2-D tile layout as an interactive Plotly HTML file saved to the
 **Output:** `HTML_PATH` (also an output node — saves file)
 
 Renders the extruded 3-D panel as an interactive Plotly HTML file (`aperiodic_panel_3d.html`). The viewer is fully rotatable, zoomable, and pannable in any browser.
+
+All four colour parameters accept a standard CSS hex colour string (e.g. `#ff6600` or `#fff`).
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `tile_height_data` | TILE_HEIGHT_DATA | — | Output of Assign Tile Heights & Tilt |
+| `colour_a` | STRING | `#0d47a1` | Colour for **even-indexed** tile columns. Tall tiles are rendered at this full colour; short tiles receive a light tint (blended 70 % toward white). |
+| `colour_b` | STRING | `#bf360c` | Colour for **odd-indexed** tile columns, following the same light-to-dark height gradient as `colour_a`. |
+| `bg_colour` | STRING | `#1a1a2e` | Background colour of the page / environment area surrounding the 3-D scene (the outer canvas outside the plot). |
+| `grid_colour` | STRING | `#e8e8f0` | Background colour applied to all three axis grid planes (the X, Y, and Z backing panels visible inside the 3-D scene). |
+
+> **Colour tips**
+> - `colour_a` and `colour_b` define the *dark* (tallest-column) end of each gradient. Short tiles automatically receive a lighter tint derived from the same hue, so no separate light-colour parameter is needed.
+> - For a monochrome look, set `colour_a` and `colour_b` to the same value.
+> - A dark `bg_colour` (e.g. `#1a1a2e`) makes the coloured tiles pop; a light `bg_colour` (e.g. `#f5f5f5`) suits a cleaner, print-style presentation.
+> - The `grid_colour` affects the three backing planes of the 3-D axis cage. Setting it close to `bg_colour` makes the grid planes almost invisible; a contrasting colour emphasises the depth cues.
 
 ### 6. Export 3D Panel (STL)
 
@@ -182,6 +199,17 @@ Tune `min_height`, `max_height`, `mode`, `frequency`, and `tilt_strength` to sha
 Right-click → **Add Node → Aperiodic Tiles → Render 3D Panel (HTML)**.  
 Connect:
 - `Assign Tile Heights & Tilt` → **`TILE_HEIGHT_DATA` output** → `Render 3D Panel` **`tile_height_data` input**
+
+Optionally customise the appearance using the four colour parameters on the node:
+
+| Parameter | What it controls |
+|---|---|
+| `colour_a` | Dark end of the colour gradient for even-indexed tile columns |
+| `colour_b` | Dark end of the colour gradient for odd-indexed tile columns |
+| `bg_colour` | Page background / environment colour surrounding the 3-D scene |
+| `grid_colour` | Background colour of all three axis grid planes inside the scene |
+
+Enter any valid CSS hex colour string (e.g. `#ff6600`). Defaults reproduce the original dark-navy / blue-orange look. See the **Node 5** reference entry above for tips.
 
 Queue the prompt and open `aperiodic_panel_3d.html` in your browser to inspect the extruded geometry interactively.
 
